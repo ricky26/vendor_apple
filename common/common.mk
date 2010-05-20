@@ -17,7 +17,6 @@ PRODUCT_COPY_FILES += \
 	$(LOCAL_PATH)/wpa_supplicant.conf:system/etc/wifi/wpa_supplicant.conf
 
 PRODUCT_BRAND := apple
-PRODUCT_DEVICE := iphone
-PRODUCT_NAME := idroid
-PRODUCT_BOARD := idroid
+PRODUCT_NAME := apple
+PRODUCT_BOARD := apple
 

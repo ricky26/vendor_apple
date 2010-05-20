@@ -1,4 +1,4 @@
-rild.libpath=/system/lib/hw/libril.idroid.so
+rild.libpath=/system/lib/hw/libril.iPhone3G.so
 rild.libargs=
 android.keylayout.gpio-keys=/system/usr/keylayout/gpio-keys.kl
 android.keychar.gpio-keys=/system/usr/keychars/gpio-keys.kcm

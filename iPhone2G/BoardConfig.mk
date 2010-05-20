@@ -1,6 +1,6 @@
 LOCAL_PATH := $(dir $(lastword $(MAKEFILE_LIST)))
 
-TARGET_BOOTLOADER_BOARD_NAME := idroid
+TARGET_BOOTLOADER_BOARD_NAME := apple
 
 USE_CAMERA_STUB := true
 
