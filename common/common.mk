@@ -14,7 +14,8 @@ PRODUCT_COPY_FILES += \
 	$(LIBERTAS)sd8686.bin:root/lib/firmware/sd8686.bin \
 	$(LOCAL_PATH)/asound.conf:system/etc/asound.conf \
 	$(LOCAL_PATH)/asound.state:system/etc/asound.state \
-	$(LOCAL_PATH)/wpa_supplicant.conf:system/etc/wifi/wpa_supplicant.conf
+	$(LOCAL_PATH)/wpa_supplicant.conf:system/etc/wifi/wpa_supplicant.conf \
+	$(LOCAL_PATH)/init.apple.rc:root/init.apple.rc
 
 PRODUCT_BRAND := apple
 PRODUCT_NAME := apple
