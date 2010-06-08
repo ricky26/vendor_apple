@@ -32,6 +32,7 @@
 #include <getopt.h>
 #include <sys/socket.h>
 #include <cutils/sockets.h>
+#include <cutils/properties.h>
 #include <termios.h>
 
 #define LOG_TAG "RIL"
@@ -985,6 +986,51 @@ error:
     at_response_free(p_response);
 }
 
+static char hexChar(char chr)
+{
+	if(chr >= 'A' && chr <= 'F')
+		return chr - 'A' + 10;
+	if(chr >= 'a' && chr <= 'F')
+		return chr - 'a' + 10;
+	return chr - '0';
+}
+
+static void convertHex(char *ptr)
+{
+	if(strlen(ptr) < 2)
+		return;
+
+	char *srcPtr = ptr;
+	int hasQuot = 0;
+	if(*srcPtr == '\"')
+	{
+		hasQuot = 1;
+		srcPtr++;
+	}
+
+	char *hexPtr = ptr;
+	char *endPtr = ptr + strlen(ptr);
+
+	while(hexPtr < endPtr)
+	{
+		if(strlen(hexPtr) < 2)
+			break;
+
+		*srcPtr = (hexChar(hexPtr[0]) << 4) | hexChar(hexPtr[1]);
+		srcPtr++;
+
+		hexPtr += 2;
+	}
+
+	if(hasQuot > 0)
+	{
+		*srcPtr = '\"';
+		srcPtr++;
+	}
+
+	*srcPtr = 0;
+}
+
 static void requestOperator(void *data, size_t datalen, RIL_Token t)
 {
     int err;
@@ -1039,6 +1085,8 @@ static void requestOperator(void *data, size_t datalen, RIL_Token t)
 
         err = at_tok_nextstr(&line, &(response[i]));
         if (err < 0) goto error;
+
+		convertHex(response[i]);
     }
 
     if (i != 3) {
@@ -2303,9 +2351,21 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     pthread_attr_t attr;
 
     s_rilenv = env;
-
     Platform = IPHONE_2G;
-    while ( -1 != (opt = getopt(argc, argv, "p:d:s:3"))) {
+
+	{
+		char buff[PROPERTY_VALUE_MAX];
+		if(property_get("ro.product.device", buff, NULL) > 0
+				&& strcmp(buff, "iPhone3G") == 0)
+			Platform = IPHONE_3G;
+	}
+
+	if(Platform == IPHONE_3G)
+		s_device_path = "/dev/ttyS4";
+	else
+		s_device_path = "/dev/ttyS1";
+
+    while ( -1 != (opt = getopt(argc, argv, "p:d:s:"))) {
         switch (opt) {
             case 'p':
                 s_port = atoi(optarg);
@@ -2326,10 +2386,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);
@@ -2357,6 +2413,20 @@ int main (int argc, char **argv)
     int fd = -1;
     int opt;
 
+	Platform = IPHONE_2G;
+
+	{
+		char buff[PROPERTY_VALUE_MAX];
+		if(property_get("ro.product.device", buff, NULL) > 0
+				&& strcmp(buff, "iPhone3G") == 0)
+			Platform = IPHONE_3G;
+	}
+
+	if(Platform == IPHONE_3G)
+		s_device_path = "/dev/ttyS4";
+	else
+		s_device_path = "/dev/ttyS1";
+
     while ( -1 != (opt = getopt(argc, argv, "p:d:"))) {
         switch (opt) {
             case 'p':
@@ -2377,10 +2447,6 @@ int main (int argc, char **argv)
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);

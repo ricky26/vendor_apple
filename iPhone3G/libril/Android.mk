@@ -34,7 +34,7 @@ ifeq (foo,foo)
   LOCAL_LDLIBS += -lpthread
   LOCAL_CFLAGS += -DRIL_SHLIB
   LOCAL_PRELINK_MODULE := false
-  LOCAL_MODULE:= libril.idroid
+  LOCAL_MODULE:= libril.$(TARGET_BOARD_PLATFORM)
   LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
   include $(BUILD_SHARED_LIBRARY)
 else
