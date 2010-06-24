@@ -32,6 +32,7 @@
 #include <getopt.h>
 #include <sys/socket.h>
 #include <cutils/sockets.h>
+#include <cutils/properties.h>
 #include <termios.h>
 
 #define LOG_TAG "RIL"
@@ -2326,7 +2327,20 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     s_rilenv = env;
 
     Platform = IPHONE_2G;
-    while ( -1 != (opt = getopt(argc, argv, "p:d:s:3"))) {
+
+    {
+        char buff[PROPERTY_VALUE_MAX];
+            if(property_get("ro.product.device", buff, NULL) > 0
+                    && strcmp(buff, "iPhone3G") == 0)
+                Platform = IPHONE_3G;
+    }
+
+    if(Platform == IPHONE_3G)
+        s_device_path = "/dev/ttyS4";
+    else
+        s_device_path = "/dev/ttyS1";
+
+    while ( -1 != (opt = getopt(argc, argv, "p:d:s:"))) {
         switch (opt) {
             case 'p':
                 s_port = atoi(optarg);
@@ -2347,10 +2361,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);
@@ -2378,6 +2388,18 @@ int main (int argc, char **argv)
     int fd = -1;
     int opt;
 
+    {
+        char buff[PROPERTY_VALUE_MAX];
+            if(property_get("ro.product.device", buff, NULL) > 0
+                    && strcmp(buff, "iPhone3G") == 0)
+                Platform = IPHONE_3G;
+    }
+
+    if(Platform == IPHONE_3G)
+        s_device_path = "/dev/ttyS4";
+    else
+        s_device_path = "/dev/ttyS1";
+
     while ( -1 != (opt = getopt(argc, argv, "p:d:"))) {
         switch (opt) {
             case 'p':
@@ -2398,10 +2420,6 @@ int main (int argc, char **argv)
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);
