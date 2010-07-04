@@ -1,5 +1,5 @@
 LOCAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-COMMON := $(subst iPhone3G,common,$(LOCAL_DIR))
+COMMON := $(subst iPodTouch1G,common,$(LOCAL_DIR))
 
 $(call inherit-product, $(COMMON)/common.mk)
 

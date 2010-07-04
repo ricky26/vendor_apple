@@ -4,4 +4,5 @@ COMMON := $(ROOT)common
 
 PRODUCT_MAKEFILES := \
   $(ROOT)iPhone2G/iPhone2G.mk \
-  $(ROOT)iPhone3G/iPhone3G.mk
+  $(ROOT)iPhone3G/iPhone3G.mk \
+  $(ROOT)iPodTouch1G/iPodTouch1G.mk
