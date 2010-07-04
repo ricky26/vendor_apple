@@ -2388,6 +2388,8 @@ int main (int argc, char **argv)
     int fd = -1;
     int opt;
 
+    Platform = IPHONE_2G;
+
     {
         char buff[PROPERTY_VALUE_MAX];
             if(property_get("ro.product.device", buff, NULL) > 0
