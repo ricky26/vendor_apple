@@ -322,6 +322,8 @@ static int callFromCLCCLine(char *line, RIL_Call *p_call)
         if (err < 0) goto error;
     }
 
+    p_call->uusInfo = NULL;
+
     return 0;
 
 error:
@@ -1722,29 +1724,42 @@ setRadioState(RIL_RadioState newState)
 
 static int ultraUnlock(){
 	ATResponse *p_response = NULL;
-	char *Line;
+	ATLine *p_cur;
+	int found;
 	int err;
 
 	err = at_send_command_multiline("AT+XGENDATA", "+XGENDATA:", &p_response);
 	if (err != 0)
 		return -1;
-	Line = p_response->p_intermediates->line;
 
-	if(strstr(Line, "ICE2_MODEM_05.13.04") != NULL)
-		at_send_command(bb051304, NULL);
-	else if(strstr(Line, "ICE2_MODEM_05.12.01") != NULL)
-		at_send_command(bb051201, NULL);
-	else if(strstr(Line, "ICE2_MODEM_05.11.07") != NULL)
-		at_send_command(bb051107, NULL);
-	else if(strstr(Line, "ICE2_MODEM_04.26.08") != NULL)
-		at_send_command(bb042608, NULL);
-	else {
-		at_response_free(p_response);
-		LOGI("No matching baseband found for Ultrasn0w");
-		return -1;
+	for (p_cur = p_response->p_intermediates; p_cur != NULL; p_cur = p_cur->p_next) {
+		char *Line = p_cur->line;
+		if(strstr(Line, "ICE2_MODEM_05.13.04") != NULL) {
+			at_send_command(&bb051304, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_05.12.01") != NULL) {
+			at_send_command(bb051201, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_05.11.07") != NULL) {
+			at_send_command(bb051107, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_04.26.08") != NULL) {
+			at_send_command(bb042608, NULL);
+			found = 1;
+			break;
+		}
 	}
 
 	at_response_free(p_response);
+
+	if (!found) {
+		LOGI("No matching baseband found for Ultrasn0w.");
+		return -1;
+	}
+
 
 	at_send_command("at+xlck=0",NULL);
 	at_send_command("at+xlck=1,1,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"\r\n",NULL);
@@ -1754,18 +1769,11 @@ static int ultraUnlock(){
 	at_send_command("at+xlck=2",NULL);
 	at_send_command("at",NULL);
 
-	err = at_send_command_multiline("AT+CPIN?", "+CPIN:", &p_response);
-	if (err != 0)
-		return -1;
-	Line = p_response->p_intermediates->line;
-
-	if((strstr(Line, "PH-NET") == NULL) && (strstr(Line, "ERROR") == NULL)) {
-		at_response_free(p_response);
+	if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
 		LOGI("Unlocked by ultrasn0w");
 		return 0;
 	}
 
-	at_response_free(p_response);
 	LOGE("Ultrasn0w unlock unsuccessful");
 	return -1;
 }
@@ -1833,14 +1841,7 @@ static int unlockWildcard()
 		LOGD("Sending Last Unlock Command");
 		at_send_command("AT+XLCK=2", NULL);
 
-		ATResponse *p_response = NULL;
-		int err = at_send_command_multiline("AT+CPIN?", "+CPIN:", &p_response);
-		if (err != 0)
-			return -1;
-
-		char *Line = p_response->p_intermediates->line;
-		if((strstr(Line, "PH-NET") == NULL) && (strstr(Line, "ERROR") == NULL)) {
-			at_response_free(p_response);
+		if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
 			LOGI("Unlocked");
 			return 0;
 		}
@@ -1855,22 +1856,13 @@ static int unlockWildcard()
 }
 
 static int unlockBaseBand() {
-	ATResponse *p_response = NULL;
-	char *Line;
 	int err;
 
-	err = at_send_command_multiline("AT+CPIN?", "+CPIN:", &p_response);
-	if (err != 0)
-		return -1;
-
-	Line = p_response->p_intermediates->line;
-	if((strstr(Line, "PH-NET") == NULL) && (strstr(Line, "ERROR") == NULL)) {
-		at_response_free(p_response);
+//	if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
+	if (getSIMStatus() == SIM_READY) {
 		LOGI("Unlocked");
 		return 0;
 	}
-
-	at_response_free(p_response);
 
 	err = ultraUnlock();
 	if (err == 0)
@@ -2404,12 +2396,10 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 
     Platform = IPHONE_2G;
 
-    {
-        char buff[PROPERTY_VALUE_MAX];
-            if(property_get("ro.product.device", buff, NULL) > 0
-                    && strcmp(buff, "iPhone3G") == 0)
-                Platform = IPHONE_3G;
-    }
+    char buff[PROPERTY_VALUE_MAX];
+    if(property_get("ro.product.device", buff, NULL) > 0
+		&& strcmp(buff, "iPhone3G") == 0)
+	Platform = IPHONE_3G;
 
     if(Platform == IPHONE_3G)
         s_device_path = "/dev/ttyS4";
@@ -2466,12 +2456,10 @@ int main (int argc, char **argv)
 
     Platform = IPHONE_2G;
 
-    {
-        char buff[PROPERTY_VALUE_MAX];
-            if(property_get("ro.product.device", buff, NULL) > 0
-                    && strcmp(buff, "iPhone3G") == 0)
-                Platform = IPHONE_3G;
-    }
+    char buff[PROPERTY_VALUE_MAX];
+    if(property_get("ro.product.device", buff, NULL) > 0
+		&& strcmp(buff, "iPhone3G") == 0)
+	Platform = IPHONE_3G;
 
     if(Platform == IPHONE_3G)
         s_device_path = "/dev/ttyS4";
