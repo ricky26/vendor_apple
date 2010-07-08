@@ -1508,12 +1508,25 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_DTMF: {
             char c = ((char *)data)[0];
             char *cmd;
-            asprintf(&cmd, "AT+VTS=%c", (int)c);
+            asprintf(&cmd, "AT+VTS=%c,1", (int)c);
             at_send_command(cmd, NULL);
             free(cmd);
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
+	case RIL_REQUEST_DTMF_START: {
+            char c = ((char *)data)[0];
+            char *cmd;
+            asprintf(&cmd, "at+xvts=%c", (int)c);
+            at_send_command(cmd, NULL);
+            free(cmd);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+	case RIL_REQUEST_DTMF_STOP:
+            at_send_command("at+xvts=", NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
         case RIL_REQUEST_SEND_SMS:
             requestSendSMS(data, datalen, t);
             break;
