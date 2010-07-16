@@ -34,6 +34,7 @@
 #include <cutils/sockets.h>
 #include <cutils/properties.h>
 #include <termios.h>
+#include "ultrasn0w-unlockstrings.h"
 
 #define LOG_TAG "RIL"
 #include <utils/Log.h>
@@ -73,7 +74,6 @@ static int onSupports (int requestCode);
 static void onCancel (RIL_Token t);
 static const char *getVersion();
 static int isRadioOn();
-static int unlockBaseBand();
 static SIM_Status getSIMStatus();
 static int getCardStatus(RIL_CardStatus **pp_card_status);
 static void freeCardStatus(RIL_CardStatus *p_card_status);
@@ -321,6 +321,8 @@ static int callFromCLCCLine(char *line, RIL_Call *p_call)
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
     }
+
+    p_call->uusInfo = NULL;
 
     return 0;
 
@@ -1043,6 +1045,8 @@ static void requestOperator(void *data, size_t datalen, RIL_Token t)
 
     ATResponse *p_response = NULL;
 
+    at_send_command("AT+CSCS=\"IRA\"", NULL);
+
     err = at_send_command_multiline(
         "AT+COPS=3,0;+COPS?;+COPS=3,1;+COPS?;+COPS=3,2;+COPS?",
         "+COPS:", &p_response);
@@ -1094,11 +1098,14 @@ static void requestOperator(void *data, size_t datalen, RIL_Token t)
         goto error;
     }
 
+    at_send_command("AT+CSCS=\"HEX\"", NULL);
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
     at_response_free(p_response);
 
     return;
 error:
+    at_send_command("AT+CSCS=\"HEX\"", NULL);
     LOGE("requestOperator must not return error when radio is on");
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
@@ -1550,12 +1557,25 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_DTMF: {
             char c = ((char *)data)[0];
             char *cmd;
-            asprintf(&cmd, "AT+VTS=%c", (int)c);
+            asprintf(&cmd, "AT+VTS=%c,1", (int)c);
             at_send_command(cmd, NULL);
             free(cmd);
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
+	case RIL_REQUEST_DTMF_START: {
+            char c = ((char *)data)[0];
+            char *cmd;
+            asprintf(&cmd, "at+xvts=%c", (int)c);
+            at_send_command(cmd, NULL);
+            free(cmd);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+	case RIL_REQUEST_DTMF_STOP:
+            at_send_command("at+xvts=", NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
         case RIL_REQUEST_SEND_SMS:
             requestSendSMS(data, datalen, t);
             break;
@@ -1762,7 +1782,63 @@ setRadioState(RIL_RadioState newState)
     }
 }
 
-static int unlockBaseBand()
+static int ultraUnlock(){
+	ATResponse *p_response = NULL;
+	ATLine *p_cur;
+	int found;
+	int err;
+
+	err = at_send_command_multiline("AT+XGENDATA", "+XGENDATA:", &p_response);
+	if (err != 0)
+		return -1;
+
+	for (p_cur = p_response->p_intermediates; p_cur != NULL; p_cur = p_cur->p_next) {
+		char *Line = p_cur->line;
+		if(strstr(Line, "ICE2_MODEM_05.13.04") != NULL) {
+			at_send_command(&bb051304, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_05.12.01") != NULL) {
+			at_send_command(bb051201, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_05.11.07") != NULL) {
+			at_send_command(bb051107, NULL);
+			found = 1;
+			break;
+		} else if(strstr(Line, "ICE2_MODEM_04.26.08") != NULL) {
+			at_send_command(bb042608, NULL);
+			found = 1;
+			break;
+		}
+	}
+
+	at_response_free(p_response);
+
+	if (!found) {
+		LOGI("No matching baseband found for Ultrasn0w.");
+		return -1;
+	}
+
+
+	at_send_command("at+xlck=0",NULL);
+	at_send_command("at+xlck=1,1,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,2,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,3,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,4,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=2",NULL);
+	at_send_command("at",NULL);
+
+	if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
+		LOGI("Unlocked by ultrasn0w");
+		return 0;
+	}
+
+	LOGE("Ultrasn0w unlock unsuccessful");
+	return -1;
+}
+
+static int unlockWildcard()
 {
 	char buf[1000000];
 	int len;
@@ -1825,13 +1901,39 @@ static int unlockBaseBand()
 		LOGD("Sending Last Unlock Command");
 		at_send_command("AT+XLCK=2", NULL);
 
-		return 0;
+		if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
+			LOGI("Unlocked");
+			return 0;
+		}
+
+		return -1;
 	}
 	else
 	{
 		LOGD("No Activation Record Found.");
 		return -1;
 	}
+}
+
+static int unlockBaseBand() {
+	int err;
+
+//	if (getSIMStatus() != SIM_NETWORK_PERSONALIZATION) {
+	if (getSIMStatus() == SIM_READY) {
+		LOGI("Unlocked");
+		return 0;
+	}
+
+	err = ultraUnlock();
+	if (err == 0)
+		return 0;
+
+	err = unlockWildcard();
+	if (err == 0)
+		return 0;
+
+	LOGE("Unlock failed");
+	return -1;
 }
 
 /** Returns SIM_NOT_READY on error */
@@ -2061,12 +2163,12 @@ error:
  */
 static void initializeCallback(void *param)
 {
-	ATResponse *p_response = NULL;
+    ATResponse *p_response = NULL;
     int err;
 
     setRadioState (RADIO_STATE_OFF);
 
-    err = unlockBaseBand();
+    unlockBaseBand();
 
     at_handshake();
 
@@ -2351,6 +2453,7 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     pthread_attr_t attr;
 
     s_rilenv = env;
+
     Platform = IPHONE_2G;
 
 	{

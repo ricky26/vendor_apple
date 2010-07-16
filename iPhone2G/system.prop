@@ -1,5 +1,6 @@
-rild.libpath=/system/lib/hw/libril.iPhone2G.so
+rild.libpath=/system/lib/hw/libril.apple.so
 rild.libargs=
 android.keylayout.gpio-keys=/system/usr/keylayout/gpio-keys.kl
 android.keychar.gpio-keys=/system/usr/keychars/gpio-keys.kcm
+wifi.interface=wlan0
 

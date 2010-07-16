@@ -9,6 +9,5 @@ PRODUCT_DEVICE := iPhone3G
 PRODUCT_COPY_FILES += \
 	$(LOCAL_DIR)gpio-keys.kl:system/usr/keylayout/gpio-keys.kl \
 	$(LOCAL_DIR)asound.conf:system/etc/asound.conf \
-	$(LOCAL_DIR)asound.state:system/etc/asound.state \
-	$(LOCAL_DIR)init.rc:root/init.$(TARGET_BOARD_PLATFORM).rc
+	$(LOCAL_DIR)asound.state:system/etc/asound.state
 

@@ -32,6 +32,7 @@
 #include <getopt.h>
 #include <sys/socket.h>
 #include <cutils/sockets.h>
+#include <cutils/properties.h>
 #include <termios.h>
 
 #define LOG_TAG "RIL"
@@ -72,7 +73,6 @@ static int onSupports (int requestCode);
 static void onCancel (RIL_Token t);
 static const char *getVersion();
 static int isRadioOn();
-static int unlockBaseBand();
 static SIM_Status getSIMStatus();
 static int getCardStatus(RIL_CardStatus **pp_card_status);
 static void freeCardStatus(RIL_CardStatus *p_card_status);
@@ -320,6 +320,8 @@ static int callFromCLCCLine(char *line, RIL_Call *p_call)
         err = at_tok_nextint(&line, &p_call->toa);
         if (err < 0) goto error;
     }
+
+    p_call->uusInfo = NULL;
 
     return 0;
 
@@ -997,6 +999,8 @@ static void requestOperator(void *data, size_t datalen, RIL_Token t)
 
     ATResponse *p_response = NULL;
 
+    at_send_command("AT+CSCS=\"IRA\"", NULL);
+
     err = at_send_command_multiline(
         "AT+COPS=3,0;+COPS?;+COPS=3,1;+COPS?;+COPS=3,2;+COPS?",
         "+COPS:", &p_response);
@@ -1046,11 +1050,14 @@ static void requestOperator(void *data, size_t datalen, RIL_Token t)
         goto error;
     }
 
+    at_send_command("AT+CSCS=\"HEX\"", NULL);
+
     RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
     at_response_free(p_response);
 
     return;
 error:
+    at_send_command("AT+CSCS=\"HEX\"", NULL);
     LOGE("requestOperator must not return error when radio is on");
     RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
     at_response_free(p_response);
@@ -1502,12 +1509,25 @@ onRequest (int request, void *data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_DTMF: {
             char c = ((char *)data)[0];
             char *cmd;
-            asprintf(&cmd, "AT+VTS=%c", (int)c);
+            asprintf(&cmd, "AT+VTS=%c,1", (int)c);
             at_send_command(cmd, NULL);
             free(cmd);
             RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
             break;
         }
+	case RIL_REQUEST_DTMF_START: {
+            char c = ((char *)data)[0];
+            char *cmd;
+            asprintf(&cmd, "at+xvts=%c", (int)c);
+            at_send_command(cmd, NULL);
+            free(cmd);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
+        }
+	case RIL_REQUEST_DTMF_STOP:
+            at_send_command("at+xvts=", NULL);
+            RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+            break;
         case RIL_REQUEST_SEND_SMS:
             requestSendSMS(data, datalen, t);
             break;
@@ -1714,6 +1734,19 @@ setRadioState(RIL_RadioState newState)
     }
 }
 
+static int ultraUnlock(){
+	at_send_command("at+xlog=1,\"00001111222233334444555566667777\x80\x1e\xff\xff\xed\xa1(         \xf0nq\x40\x10\x01\x11\x01\x8d\xfe& Poq\x40\x30S%\x40\x81\x1e\xff\xff\x11\x21\x09\x01\x06\x31\x09\x02\x4a\x1c\x21\x20\x01\x30\x33\x78\x98\x42px\x07\xd0\x41\x3b\x41\x38\x1b\x01\x1b\x18\x0b\x70\x01\x31\x02\x36\xf1\xe7\x90G\x01 \x01\x38\x01\x1c\xa0G\xad\x46\x7f\xbd\x22\x3b\x22\x41\x41LFAIEIAKKBCGKCFCBKAFELJIEHAGEICHKBEPKCFCBKACELJIEHADEIIAEHAALNCMIIEACAMACPEJEACACMEJEAMAEGMAEGPOFPCNOJAAAAAAPKPOJPLNOIDALFBBENIFLABBELCIBMGJEGPPCCJIEHAAJLANCLBBNBABJJANELAKGIBKGAAEDDEKGIBKGAIKGIALELBDGAALELFDGAALELJDGAABCDMLGACACDAAJDCIBMGJEGPPCCAHELJIEHNPOHAAAAJMICBOEANIPPECCAFABGDAEAAAPPAAABABAEACAEADAEAEAEEAAAEDCAMAEGMAEGMAEGMAEGMAEGMAEGMAEGMAEGPOFPCNOJAAAAAAPKPOJPLNOIPALFBFELIACECEABIJLABIIABDENCABMAPBMKIEHAGBMJICAKIEHAACCEECDBAEJMCGAADJDAKCDAFJDAMCDAAJCACJEAEJCAGJDAMEKABJGAACDALEMKAEHACBMAACIAENBAKEJDIBMAKELJIEHADOAAJEJDIBMAHELJIEHAJLAPALNLINDBOEAPAJDBECAKECMEJEAMACPEJEALEOFEDCALACMEJEAPABBELCALECMEJEAGEGFHGHEGFGBGNDBAAAAAAAAEPELCBAAEFFCFCEPFCCACFGEAAAA\"",NULL);
+	at_send_command("at+xlck=0",NULL);
+	at_send_command("at+xlck=1,1,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,2,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,3,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=1,4,\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",NULL);
+	at_send_command("at+xlck=2",NULL);
+
+	LOGI("Unlock Strings Sent");
+	return 0;
+}
+
 static int unlockBaseBand()
 {
 	char buf[1000000];
@@ -1776,7 +1809,6 @@ static int unlockBaseBand()
 		//at+xlck=2
 		LOGD("Sending Last Unlock Command");
 		at_send_command("AT+XLCK=2", NULL);
-
 		return 0;
 	}
 	else
@@ -2013,12 +2045,16 @@ error:
  */
 static void initializeCallback(void *param)
 {
-	ATResponse *p_response = NULL;
+    ATResponse *p_response = NULL;
     int err;
 
     setRadioState (RADIO_STATE_OFF);
 
     err = unlockBaseBand();
+
+    if(err<0 ){
+	err=ultraUnlock();
+    }
 
     at_handshake();
 
@@ -2305,7 +2341,18 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
     s_rilenv = env;
 
     Platform = IPHONE_2G;
-    while ( -1 != (opt = getopt(argc, argv, "p:d:s:3"))) {
+
+    char buff[PROPERTY_VALUE_MAX];
+    if(property_get("ro.product.device", buff, NULL) > 0
+		&& strcmp(buff, "iPhone3G") == 0)
+	Platform = IPHONE_3G;
+
+    if(Platform == IPHONE_3G)
+        s_device_path = "/dev/ttyS4";
+    else
+        s_device_path = "/dev/ttyS1";
+
+    while ( -1 != (opt = getopt(argc, argv, "p:d:s:"))) {
         switch (opt) {
             case 'p':
                 s_port = atoi(optarg);
@@ -2326,10 +2373,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);
@@ -2357,6 +2400,18 @@ int main (int argc, char **argv)
     int fd = -1;
     int opt;
 
+    Platform = IPHONE_2G;
+
+    char buff[PROPERTY_VALUE_MAX];
+    if(property_get("ro.product.device", buff, NULL) > 0
+		&& strcmp(buff, "iPhone3G") == 0)
+	Platform = IPHONE_3G;
+
+    if(Platform == IPHONE_3G)
+        s_device_path = "/dev/ttyS4";
+    else
+        s_device_path = "/dev/ttyS1";
+
     while ( -1 != (opt = getopt(argc, argv, "p:d:"))) {
         switch (opt) {
             case 'p':
@@ -2377,10 +2432,6 @@ int main (int argc, char **argv)
                 s_device_socket = 1;
                 LOGI("Opening socket %s\n", s_device_path);
             break;
-
-	    case '3':
-	        Platform = IPHONE_3G;
-	    break;
 
             default:
                 usage(argv[0]);
